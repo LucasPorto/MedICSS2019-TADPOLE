@@ -16,7 +16,7 @@ def create_prediction(train_data, train_targets, data_forecast):
     :rtype: pd.DataFrame
     """
     # * Clinical status forecast: predefined likelihoods per current status
-    most_recent_data = pd.concat((train_targets, train_data[['EXAMDATE', 'AGE_AT_EXAM']]), axis=1).sort_values(by='EXAMDATE')
+    most_recent_data = pd.concat((train_targets, train_data[['EXAMDATE', 'AGE_AT_EXAM', 'AGE']]), axis=1).sort_values(by='EXAMDATE')
 
     most_recent_CLIN_STAT = most_recent_data['CLIN_STAT'].dropna().tail(1).iloc[0]
     if most_recent_CLIN_STAT == 'NL':
@@ -38,7 +38,7 @@ def create_prediction(train_data, train_targets, data_forecast):
     adas_mask = (most_recent_data['AGE_AT_EXAM'].dropna()>0) & (most_recent_data['ADAS13'].dropna()>0) # not missing: Ventricles and ICV
     x = most_recent_data['AGE_AT_EXAM'].dropna()[adas_mask]
     y = most_recent_data['ADAS13'].dropna()[adas_mask]
-    lm = np.polyfit(x,y,1)
+    lm = np.polyfit(x, y, 1)
     adas_p = np.poly1d(lm)
 
     adas_prediction = np.maximum(most_recent_ADAS13, adas_p(most_recent_data['AGE_AT_EXAM'].dropna().iloc[-1] +
@@ -56,10 +56,22 @@ def create_prediction(train_data, train_targets, data_forecast):
     vent_mask = (most_recent_data['Ventricles_ICV'].dropna()>0) & (most_recent_data['AGE_AT_EXAM'].dropna()>0) # not missing: Ventricles and ICV
     x = most_recent_data['AGE_AT_EXAM'].dropna()[vent_mask]
     y = most_recent_data['Ventricles_ICV'].dropna()[vent_mask]
-    lm = np.polyfit(x,y,1)
-    vent_p = np.poly1d(lm)
 
-    vent_prediction = vent_p(most_recent_data['AGE_AT_EXAM'].dropna().iloc[-1] + data_forecast['Forecast Month']/12)
+    age_bl = train_data['AGE'].reset_index(drop=True)
+    age_at_exam = most_recent_data['AGE_AT_EXAM'].dropna().iloc[-1] + data_forecast['Forecast Month']/12
+    years_from_bl = age_at_exam - age_bl.iloc[0]
+
+    intercepts = np.ones((years_from_bl.shape[0], 1))
+    age_bl = intercepts * age_bl.iloc[0]
+
+    fe_mat = pd.DataFrame({'INT': intercepts,
+                           'AGE': age_bl,
+                           'YEARS_FROM_BL': years_from_bl})
+
+    re_mat = pd.DataFrame({'INT': intercepts,
+                           'AGE': age_bl})
+
+    
 
     data_forecast.loc[:, 'Ventricles_ICV'] = vent_prediction
     data_forecast.loc[:, 'Ventricles_ICV 50% CI lower'] = np.maximum(0, vent_prediction - 0.01 * vent_prediction)

@@ -4,10 +4,10 @@
 
 from os.path import join
 
-from tadpole.io import load_tadpole_data, write_submission_table
-from tadpole.validation import get_test_subjects
-from tadpole.submission import create_submission_table
-from tadpole.models.simple import create_prediction
+from io_local import load_tadpole_data, write_submission_table
+from validation import get_test_subjects
+from submission import create_submission_table
+from models.mixed_model import MixedModel
 
 
 # Script requires that TADPOLE_D1_D2.csv is in the parent directory.
@@ -28,16 +28,19 @@ lb2_subjects = get_test_subjects(LB_table)
 
 submission = []
 # Each subject in LB2
+
+model = MixedModel()
+
 for rid in lb2_subjects:
     subj_data = LB_table.query('RID == @rid')
     subj_targets = LB_targets.query('RID == @rid')
 
     # *** Construct example forecasts
     subj_forecast = create_submission_table([rid], n_forecasts)
-    subj_forecast = create_prediction(subj_data, subj_targets, subj_forecast)
+    subj_forecast = model.create_prediction(subj_data, subj_targets, subj_forecast, rid)
 
     submission.append(subj_forecast)
 
-## Now construct the forecast spreadsheet and output it.
+## now construct the forecast spreadsheet and output it.
 print('Constructing the output spreadsheet {0} ...'.format(output_file))
 write_submission_table(submission, output_file)
